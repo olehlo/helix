@@ -2639,7 +2639,7 @@ fn global_search(cx: &mut Context) {
     let reg = cx.register.unwrap_or('/');
     cx.editor.registers.last_search_register = reg;
 
-    let picker = Picker::new(
+    let mut picker = Picker::new(
         columns,
         1, // contents
         [],
@@ -2677,6 +2677,8 @@ fn global_search(cx: &mut Context) {
     })
     .with_history_register(Some(reg))
     .with_dynamic_query(get_files, Some(275));
+
+    picker.show_preview = true;
 
     cx.push_layer(Box::new(overlaid(picker)));
 }

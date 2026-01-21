@@ -253,7 +253,7 @@ pub struct Picker<T: 'static + Send + Sync, D: 'static> {
     query: PickerQuery,
 
     /// Whether to show the preview panel (default true)
-    show_preview: bool,
+    pub show_preview: bool,
     /// Constraints for tabular formatting
     widths: Vec<Constraint>,
 
@@ -384,7 +384,7 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
             prompt,
             query,
             truncate_start: true,
-            show_preview: true,
+            show_preview: false,
             callback_fn: Box::new(callback_fn),
             default_action: Action::Replace,
             completion_height: 0,
@@ -1083,10 +1083,10 @@ impl<I: 'static + Send + Sync, D: 'static + Send + Sync> Component for Picker<I,
         };
 
         match key_event {
-            shift!(Tab) | key!(Up) | ctrl!('p') => {
+            key!(Up) | ctrl!('p') => {
                 self.move_by(1, Direction::Backward);
             }
-            key!(Tab) | key!(Down) | ctrl!('n') => {
+            key!(Down) | ctrl!('n') => {
                 self.move_by(1, Direction::Forward);
             }
             key!(PageDown) | ctrl!('d') => {
@@ -1155,6 +1155,9 @@ impl<I: 'static + Send + Sync, D: 'static + Send + Sync> Component for Picker<I,
                 return close_fn(self);
             }
             ctrl!('t') => {
+                self.toggle_preview();
+            }
+            key!(Tab) => {
                 self.toggle_preview();
             }
             _ => {

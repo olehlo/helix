@@ -318,6 +318,7 @@ impl MappableCommand {
         extend_visual_line_down, "Extend down",
         copy_selection_on_next_line, "Copy selection on next line",
         copy_selection_on_prev_line, "Copy selection on previous line",
+        remove_selection_on_curr_line, "Remove selection on prev line",
         move_next_word_start, "Move to start of next word",
         move_prev_word_start, "Move to start of previous word",
         move_next_word_end, "Move to end of next word",
@@ -2071,6 +2072,74 @@ fn copy_selection_on_prev_line(cx: &mut Context) {
 
 fn copy_selection_on_next_line(cx: &mut Context) {
     copy_selection_on_line(cx, Direction::Forward)
+}
+
+// CARE: Vibecoded
+// BUG: split_seleciton_on_new_line creates a multicursor scenario, and makes the FIRST cursor - the main cursor, but
+//      this function only works when your main cursor is the LAST cursor in a multicursor scenario 
+fn remove_selection_on_curr_line(cx: &mut Context) {
+    use helix_core::visual_coords_at_pos;
+    
+    let (view, doc) = current!(cx.editor);
+    let text = doc.text().slice(..);
+    let selection = doc.selection(view.id);
+    
+    // Need at least 2 selections to remove one
+    if selection.len() < 2 {
+        return;
+    }
+    
+    let primary_idx = selection.primary_index();
+    let primary = selection.primary();
+    let primary_head = if primary.anchor < primary.head {
+        primary.head - 1
+    } else {
+        primary.head
+    };
+    
+    let tab_width = doc.tab_width();
+    let primary_pos = visual_coords_at_pos(text, primary_head, tab_width);
+    
+    // Find the selection that's on the line above the primary
+    let mut new_primary_idx = None;
+    let mut min_distance = usize::MAX;
+    
+    for (idx, range) in selection.iter().enumerate() {
+        if idx == primary_idx {
+            continue;
+        }
+        
+        let head = if range.anchor < range.head {
+            range.head - 1
+        } else {
+            range.head
+        };
+        let pos = visual_coords_at_pos(text, head, tab_width);
+        
+        // Check if it's above the primary (smaller row number)
+        if pos.row < primary_pos.row {
+            let distance = primary_pos.row - pos.row;
+            if distance < min_distance {
+                min_distance = distance;
+                new_primary_idx = Some(idx);
+            }
+        }
+    }
+    
+    if let Some(new_idx) = new_primary_idx {
+        let mut ranges: SmallVec<[Range; 1]> = selection.ranges().iter().cloned().collect();
+        ranges.remove(primary_idx);
+        
+        // Adjust the new primary index since we removed an element
+        let adjusted_new_idx = if new_idx > primary_idx {
+            new_idx - 1
+        } else {
+            new_idx
+        };
+        
+        let new_selection = Selection::new(ranges, adjusted_new_idx);
+        doc.set_selection(view.id, new_selection);
+    }
 }
 
 fn select_all(cx: &mut Context) {

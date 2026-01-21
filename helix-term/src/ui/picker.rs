@@ -699,12 +699,9 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
         let background = cx.editor.theme.get("ui.background");
         surface.clear_with(area, background);
 
-        const BLOCK: Block<'_> = Block::bordered();
+        let inner = area;
 
-        // calculate the inner area inside the box
-        let inner = BLOCK.inner(area);
-
-        BLOCK.render(area, surface);
+        // BLOCK.render(area, surface);
 
         // -- Render the input bar:
 
@@ -734,17 +731,17 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
         );
 
         // -- Separator
-        let sep_style = cx.editor.theme.get("ui.background.separator");
-        let borders = BorderType::line_symbols(BorderType::Plain);
-        for x in inner.left()..inner.right() {
-            if let Some(cell) = surface.get_mut(x, inner.y + 1) {
-                cell.set_symbol(borders.horizontal).set_style(sep_style);
-            }
-        }
+        // let sep_style = cx.editor.theme.get("ui.background.separator");
+        // let borders = BorderType::line_symbols(BorderType::Plain);
+        // for x in inner.left()..inner.right() {
+        //     if let Some(cell) = surface.get_mut(x, inner.y + 1) {
+        //         cell.set_symbol(borders.horizontal).set_style(sep_style);
+        //     }
+        // }
 
         // -- Render the contents:
         // subtract area of prompt from top
-        let inner = inner.clip_top(2);
+        let inner = inner.clip_top(1);
         let rows = inner.height.saturating_sub(self.header_height()) as u32;
         let offset = self.cursor - (self.cursor % std::cmp::max(1, rows));
         let cursor = self.cursor.saturating_sub(offset);
@@ -838,7 +835,7 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
         let mut table = Table::new(options)
             .style(text_style)
             .highlight_style(selected)
-            .highlight_symbol(" > ")
+            .highlight_symbol(" ")
             .column_spacing(1)
             .widths(&self.widths);
 
@@ -882,20 +879,16 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
 
     fn render_preview(&mut self, area: Rect, surface: &mut Surface, cx: &mut Context) {
         // -- Render the frame:
+        let new_area = get_beautified_area(area, true);
         // clear area
         let background = cx.editor.theme.get("ui.background");
         let text = cx.editor.theme.get("ui.text");
         let directory = cx.editor.theme.get("ui.text.directory");
-        surface.clear_with(area, background);
+        surface.clear_with(new_area, background);
 
-        const BLOCK: Block<'_> = Block::bordered();
-
-        // calculate the inner area inside the box
-        let inner = BLOCK.inner(area);
-        // 1 column gap on either side
         let margin = Margin::horizontal(1);
-        let inner = inner.inner(margin);
-        BLOCK.render(area, surface);
+        let mut inner = new_area;
+        inner = inner.inner(margin);
 
         if let Some((preview, range)) = self.get_preview(cx.editor) {
             let doc = match preview.document() {
@@ -961,7 +954,7 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
             let loader = cx.editor.syn_loader.load();
 
             let syntax_highlighter =
-                EditorView::doc_syntax_highlighter(doc, offset.anchor, area.height, &loader);
+                EditorView::doc_syntax_highlighter(doc, offset.anchor, new_area.height, &loader);
             let mut overlay_highlights = Vec::new();
 
             EditorView::doc_diagnostics_highlights_into(
@@ -1008,6 +1001,26 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
     }
 }
 
+fn get_beautified_area(old_area: Rect, is_preview: bool) -> Rect {
+    // Kinda hacky, but should work
+
+    let new_height = 11; // place for 11 elements
+
+    let x_offset = 1;
+    let mut new_area = Rect {
+        x: x_offset,
+        y: (old_area.height + old_area.y * 2) - new_height + 3,
+        width: (old_area.width + old_area.x * 2) - x_offset - 1,
+        height: new_height - 1,
+    };
+
+    if is_preview {
+        new_area.x = old_area.x;
+        new_area.width = old_area.x;
+    }
+    return new_area;
+}
+
 impl<I: 'static + Send + Sync, D: 'static + Send + Sync> Component for Picker<I, D> {
     fn render(&mut self, area: Rect, surface: &mut Surface, cx: &mut Context) {
         // +---------+ +---------+
@@ -1026,7 +1039,8 @@ impl<I: 'static + Send + Sync, D: 'static + Send + Sync> Component for Picker<I,
             area.width
         };
 
-        let picker_area = area.with_width(picker_width);
+        // let picker_area = area.with_width(picker_width);
+        let picker_area = get_beautified_area(area, false);
         self.render_picker(picker_area, surface, cx);
 
         if render_preview {
@@ -1152,9 +1166,7 @@ impl<I: 'static + Send + Sync, D: 'static + Send + Sync> Component for Picker<I,
     }
 
     fn cursor(&self, area: Rect, editor: &Editor) -> (Option<Position>, CursorKind) {
-        let block = Block::bordered();
-        // calculate the inner area inside the box
-        let inner = block.inner(area);
+        let inner = get_beautified_area(area, false);
 
         // prompt area
         let render_preview =

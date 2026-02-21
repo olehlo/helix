@@ -319,7 +319,7 @@ pub fn diagnostics_or_breakpoints<'doc>(
 
     Box::new(move |line, selected, first_visual_line: bool, out| {
         execution_pause_indicator(line, selected, first_visual_line, out)
-            .or_else(|| breakpoints(line, selected, first_visual_line, out))
+            // .or_else(|| breakpoints(line, selected, first_visual_line, out))
             .or_else(|| diagnostics(line, selected, first_visual_line, out))
     })
 }
